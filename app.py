@@ -74,7 +74,7 @@ if st.button("GENERAR CAMPAÑA ✨", type="primary"):
                 
                 # Configurar el modelo (Usamos Gemini 1.5 Pro por su capacidad multimodal)
                 model = genai.GenerativeModel(
-                    model_name="gemini-1.5-flash",
+                    model_name="gemini-2.5-flash",
                     system_instruction=SYSTEM_INSTRUCTION
                 )
 
