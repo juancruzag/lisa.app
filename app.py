@@ -36,21 +36,20 @@ Select a scenario based on 'Vibe' and 'Momento', applying it to the chosen 'Mode
 st.title("📸 LISA - Generador de Campaña")
 st.markdown("Subí la foto de la prenda y generá la campaña con estética Bahía Blanca.")
 
-# Sidebar para la API Key
-with st.sidebar:
-    st.header("Configuración")
-    api_key = st.text_input("Ingresa tu Google API Key", type="password")
-    st.markdown("[Conseguir API Key](https://aistudio.google.com/app/apikey)")
-
-if not api_key:
-    st.warning("👈 Por favor ingresa tu API Key en la barra lateral para comenzar.")
-    st.stop()
-
-# Configurar Gemini
+# Configurar Gemini usando Secretos de Streamlit
 try:
+    # Intenta leer del secreto guardado
+    api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
-except Exception as e:
-    st.error(f"Error en la API Key: {e}")
+except Exception:
+    # Si falla, muéstralo en el sidebar (para desarrollo)
+    with st.sidebar:
+        api_key = st.text_input("API Key", type="password")
+        if api_key:
+            genai.configure(api_key=api_key)
+        else:
+            st.warning("Falta configurar la API Key en los Secrets.")
+            st.stop()
 
 # --- FORMULARIO PRINCIPAL ---
 uploaded_file = st.file_uploader("Subir foto de la prenda", type=["jpg", "jpeg", "png", "webp"])
