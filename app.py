@@ -48,7 +48,7 @@ if st.button("GENERAR CAMPAÑA ✨", type="primary"):
                 
                 request = f"Create a prompt for a {modelo} woman, at {momento}, vibe {vibe}."
                 
-                flash_model = genai.GenerativeModel('gemini-2.5-flash')
+                flash_model = genai.GenerativeModel('gemini-2.5-pro')
                 response = flash_model.generate_content([system_prompt, request, image_input])
                 final_prompt = response.text
 
