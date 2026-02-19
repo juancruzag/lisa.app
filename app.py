@@ -2,98 +2,79 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(
-    page_title="LISA Campaign Generator",
-    page_icon="📸",
-    layout="centered"
-)
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="LISA Campaign", page_icon="📸")
 
-# --- SYSTEM PROMPT (CEREBRO DE LA APP) ---
-# Aquí pegamos las reglas inmutables de LISA
-SYSTEM_INSTRUCTION = """
-**CORE AESTHETIC & FRAMING RULES (NON-NEGOTIABLE):**
-1.  **THE "NOSE-DOWN" RULE (CRITICAL):** All images MUST be strictly framed from the tip of the nose down. NEVER show eyes, forehead, or the upper half of the face. The framing must cut right above the nostrils. Focus is 80% on the outfit's texture/fit and 20% on the lower face/lips/chin to convey attitude without identity.
-2.  **THE LOOK:** Analog photography style, 35mm Kodak Portra 400 film. High texture, visible film grain, natural light leaks, slight vignette. NO smooth/plastic "AI skin".
-3.  **THE LOCATION:** Bahía Blanca, Argentina. You must ensure the environment looks authentic to this Argentine city. Use visual cues: "veredas con baldosas calcáreas" (patterned sidewalk tiles), "árboles plátanos" (sycamore trees), neoclassical architecture facades, and general urban grit.
-4.  **THE RATIO:** All images must be generated in **4:5 aspect ratio (vertical portrait)**.
-
-**DYNAMIC SCENARIO MIXER (Internal Logic):**
-Select a scenario based on 'Vibe' and 'Momento', applying it to the chosen 'Modelo'.
-* *Urbano/Día:* Crossing a street on "baldosas" sidewalks, pausing next to a "plátano" tree, waiting at a vintage bus stop.
-* *Urbano/Noche:* Waiting for a taxi under neon lights of a kiosk, walking fast on wet pavement reflecting city lights, standing near a brutalist concrete building.
-* *Social/Día:* Having an aperitivo at a sidewalk cafe table, browsing a local outdoor market, holding a bouquet of flowers.
-* *Social/Noche:* Holding a cocktail at a dimly lit speakeasy bar counter, standing outside a crowded music venue (flash photography style), laughing at a dinner table with string lights.
-* *Trabajo/Aesthetic:* typing on a laptop in a minimalist cafe with large windows, looking through vinyl records in a shop, carrying a leather folder in a downtown area.
-
-**SUBJECT DEFINITIONS:**
-* **Joven:** Authentic Argentine woman (20s).
-* **Madura:** Sophisticated Argentine woman (40s-50s), showing elegant, natural signs of aging on neck/hands.
-* **Plus Size:** Confident, voluptuous curvy Argentine woman, clothes fitting tightly but naturally showing figure.
-"""
-
-# --- INTERFAZ DE USUARIO ---
-st.title("📸 LISA - Generador de Campaña")
-st.markdown("Subí la foto de la prenda y generá la campaña con estética Bahía Blanca.")
-
-# Configurar Gemini usando Secretos de Streamlit
+# --- SECRETOS & CONFIGURACIÓN ---
 try:
-    # Intenta leer del secreto guardado
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    # Si falla, muéstralo en el sidebar (para desarrollo)
-    with st.sidebar:
-        api_key = st.text_input("API Key", type="password")
-        if api_key:
-            genai.configure(api_key=api_key)
-        else:
-            st.warning("Falta configurar la API Key en los Secrets.")
-            st.stop()
+    st.error("⚠️ Falta la API Key en los Secrets de Streamlit.")
+    st.stop()
 
-# --- FORMULARIO PRINCIPAL ---
-uploaded_file = st.file_uploader("Subir foto de la prenda", type=["jpg", "jpeg", "png", "webp"])
+# --- INTERFAZ ---
+st.title("📸 LISA - Generador de Campaña")
+st.markdown("Generá la campaña con estética Bahía Blanca.")
+
+uploaded_file = st.file_uploader("Subir foto de la prenda", type=["jpg", "png", "webp"])
 
 col1, col2, col3 = st.columns(3)
-with col1:
-    modelo = st.selectbox("Modelo", ["Joven", "Madura", "Plus Size"])
-with col2:
-    momento = st.selectbox("Momento", ["Día", "Noche"])
-with col3:
-    vibe = st.selectbox("Vibe", ["Urbano", "Social", "Trabajo", "Relax"])
+with col1: modelo = st.selectbox("Modelo", ["Joven", "Madura", "Plus Size"])
+with col2: momento = st.selectbox("Momento", ["Día", "Noche"])
+with col3: vibe = st.selectbox("Vibe", ["Urbano", "Social", "Trabajo", "Relax"])
 
-# Botón de generación
+# --- CEREBRO DE LA APP ---
 if st.button("GENERAR CAMPAÑA ✨", type="primary"):
     if not uploaded_file:
-        st.error("⚠️ Por favor sube una imagen de la prenda primero.")
+        st.warning("Subí una foto primero.")
     else:
-        with st.spinner("📸 La IA está haciendo la sesión de fotos... (Esto puede tardar unos segundos)"):
+        with st.spinner("1. Analizando prenda y creando Prompt..."):
             try:
-                # Cargar imagen
-                image = Image.open(uploaded_file)
+                # PASO 1: CREAR EL PROMPT CON GEMINI FLASH
+                image_input = Image.open(uploaded_file)
                 
-                # Configurar el modelo (Usamos Gemini 1.5 Pro por su capacidad multimodal)
-                model = genai.GenerativeModel(
-                    model_name="gemini-2.5-flash",
-                    system_instruction=SYSTEM_INSTRUCTION
-                )
+                # Reglas de estilo (Prompt Engineer)
+                system_prompt = """
+                You are a Fashion Art Director. Your task is to write a PRECISE IMAGE GENERATION PROMPT for 'Imagen 3'.
+                Based on the user's garment image and parameters, write a prompt following these rules:
+                1. FRAMING: Strict close-up from nose down. No eyes visible.
+                2. LOCATION: Bahía Blanca, Argentina (sidewalk tiles, sycamore trees).
+                3. AESTHETIC: 35mm Kodak Portra 400, film grain.
+                4. MODEL: Describe the model based on the selection (Joven/Madura/Plus Size).
+                5. OUTFIT: Describe the uploaded garment in extreme detail based on the image provided.
+                OUTPUT ONLY THE ENGLISH PROMPT TEXT. NO INTRO.
+                """
+                
+                request = f"Create a prompt for a {modelo} woman, at {momento}, vibe {vibe}."
+                
+                flash_model = genai.GenerativeModel('gemini-1.5-flash')
+                response = flash_model.generate_content([system_prompt, request, image_input])
+                final_prompt = response.text
 
-                # Construir el prompt simple (El System Prompt hace el trabajo pesado)
-                user_prompt = f"Create a fashion campaign photo. MODELO: {modelo}. MOMENTO: {momento}. VIBE: {vibe}. The garment is shown in the attached image."
-
-                # Generar
-                response = model.generate_content([user_prompt, image])
-                
-                # Mostrar resultado
-                st.success("¡Foto generada con éxito!")
-                st.image(response.text, caption="Prompt generado (Nota: Gemini devuelve texto, la imagen real requiere integración con herramienta de imagen o esperar a que Gemini 1.5 Pro soporte output nativo de imagen en API. Por ahora, este código simula la creación del PROMPT PERFECTO para usar en Nano Banana/Midjourney, o si tu API Key tiene acceso a generación de imagen, devolverá la imagen).")
-                
-                # NOTA IMPORTANTE PARA JUAN CRUZ:
-                # Actualmente la API estándar de Python devuelve TEXTO. 
-                # Si tienes acceso a Imagen 3 via API, el código cambia ligeramente.
-                # Este código te devolverá el PROMPT PERFECTO para pegar.
-                
-                st.code(response.text, language="markdown")
+                st.success("¡Prompt Creado!")
+                with st.expander("Ver Prompt generado (Inglés)"):
+                    st.code(final_prompt)
 
             except Exception as e:
-                st.error(f"Ocurrió un error: {e}")
+                st.error(f"Error en paso 1: {e}")
+                st.stop()
+
+        with st.spinner("2. Revelando fotografía (Esto puede tardar)..."):
+            try:
+                # PASO 2: GENERAR LA IMAGEN REAL (INTENTO CON IMAGEN 3)
+                imagen_model = genai.GenerativeModel("imagen-3.0-generate-001")
+                result = imagen_model.generate_images(
+                    prompt=final_prompt,
+                    number_of_images=1,
+                    aspect_ratio="4:5",
+                    safety_filter_level="block_only_high"
+                )
+                
+                # Mostrar la imagen
+                st.image(result.images[0].image, caption="Campaña LISA Generada")
+                
+            except Exception as e:
+                st.warning("⚠️ Tu API Key aún no tiene acceso al modelo de IMAGEN. Pero el Prompt de arriba funciona perfecto.")
+                st.error(f"Detalle del error de imagen: {e}")
+                st.info("💡 SOLUCIÓN TEMPORAL: Copia el texto del cuadro gris de arriba y pégalo en Midjourney o Firefly.")
